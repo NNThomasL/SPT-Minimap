@@ -31,168 +31,138 @@ namespace CactusPie.MapLocation.Services.Quests
 
             var questData = Traverse.Create(player).Field("_questController").GetValue<object>();
 
-            var quests = Traverse.Create(questData).Field("Quests").GetValue<object>();
+            var quests = Traverse.Create(questData).Property("Quests").GetValue<object>();
 
-            var questsList = Traverse.Create(quests).Field("list_0").GetValue<IList>();
+            var questsList = Traverse.Create(quests).Field("list_1").GetValue<IList>();
 
             var lootItemsList = Traverse.Create(gameWorld).Field("LootItems").Field("list_0").GetValue<List<LootItem>>();
 
             (string Id, LootItem Item)[] questItems =
                 lootItemsList.Where(x => x.Item.QuestItem).Select(x => (x.TemplateId, x)).ToArray();
 
-            foreach (QuestClass item in questsList)
+            foreach (QuestDataClass item in questsList)
             {
-                if (item.QuestStatus != EQuestStatus.Started)
+                if (item.Status != EQuestStatus.Started)
                 {
                     continue;
                 }
 
-                var template = Traverse.Create(item).Property("Template").GetValue<object>();
+                var template = Traverse.Create(item).Field("Template").GetValue<RawQuestClass>();
 
                 var nameKey = Traverse.Create(template).Property("NameLocaleKey").GetValue<string>();
 
-                var traderId = Traverse.Create(template).Field("TraderId").GetValue<string>();
+                var traderId = Traverse.Create(template).Property("TraderId").GetValue<string>();
+                
+                var questConditions = Traverse.Create(template).Property("Conditions").GetValue<IDictionary>();
 
-                var availableForFinishConditions =
-                    Traverse.Create(item).Property("AvailableForFinishConditions").GetValue<object>();
-
-                var availableForFinishConditionsList =
-                    Traverse.Create(availableForFinishConditions).Field("list_0").GetValue<IList<Condition>>();
-
-
-                foreach (Condition condition in availableForFinishConditionsList)
+                foreach (DictionaryEntry conditionList in questConditions)
                 {
-                    // Check if this condition of the quest has already been completed
-                    //MinimapSenderPlugin.MinimapSenderLogger.LogInfo($"Quest -> IsConditionDone: {item.IsConditionDone(condition)}");
-                    if (item.IsConditionDone(condition))
+                    if ((EQuestStatus)conditionList.Key != EQuestStatus.AvailableForFinish)
                     {
                         continue;
                     }
+                    
+                    var conditionsAvailable = Traverse.Create(conditionList.Value).Field("list_0").GetValue();
 
-                    switch (condition)
+                    foreach (Condition condition in conditionsAvailable as List<Condition>)
                     {
-                        case ConditionLeaveItemAtLocation location:
+                        // Check if this part of the quest has already been completed
+                        if (item.CompletedConditions.Contains(condition.id))
                         {
-                            string zoneId = location.zoneId;
-                            IEnumerable<PlaceItemTrigger> zoneTriggers = allTriggers.GetZoneTriggers<PlaceItemTrigger>(zoneId);
-
-                            if (zoneTriggers != null)
-                            {
-                                foreach (PlaceItemTrigger trigger in zoneTriggers)
-                                {
-                                    var staticInfo = new QuestData
-                                    {
-                                        Id = location.id,
-                                        Location = ToQuestLocation(trigger.transform.position),
-                                        ZoneId = zoneId,
-                                        NameText = _localizationHelper.Localized(nameKey),
-                                        Description = _localizationHelper.Localized(location.id),
-                                        Trader = TraderIdToName(traderId),
-                                    };
-
-                                    questMarkerData.Add(staticInfo);
-                                }
-                            }
-
-                            break;
+                            continue;
                         }
-                        case ConditionPlaceBeacon beacon:
+                        
+                        switch (condition)
                         {
-                            string zoneId = beacon.zoneId;
-
-                            IEnumerable<PlaceItemTrigger> zoneTriggers = allTriggers.GetZoneTriggers<PlaceItemTrigger>(zoneId);
-
-                            if (zoneTriggers != null)
+                            case ConditionLeaveItemAtLocation location:
                             {
-                                foreach (PlaceItemTrigger trigger in zoneTriggers)
+                                string zoneId = location.zoneId;
+                                IEnumerable<PlaceItemTrigger> zoneTriggers = allTriggers.GetZoneTriggers<PlaceItemTrigger>(zoneId);
+
+                                if (zoneTriggers != null)
                                 {
-                                    var staticInfo = new QuestData
-                                    {
-                                        Id = beacon.id,
-                                        Location = ToQuestLocation(trigger.transform.position),
-                                        ZoneId = zoneId,
-                                        NameText = _localizationHelper.Localized(nameKey),
-                                        Description = _localizationHelper.Localized(beacon.id),
-                                        Trader = TraderIdToName(traderId),
-                                    };
-
-                                    questMarkerData.Add(staticInfo);
-                                }
-                            }
-
-                            break;
-                        }
-                        case ConditionFindItem findItem:
-                        {
-                            string[] itemIds = findItem.target;
-
-                            foreach (string itemId in itemIds)
-                            {
-                                foreach ((string Id, LootItem Item) questItem in questItems)
-                                {
-                                    if (questItem.Id.Equals(itemId, StringComparison.OrdinalIgnoreCase))
+                                    foreach (PlaceItemTrigger trigger in zoneTriggers)
                                     {
                                         var staticInfo = new QuestData
                                         {
-                                            Id = findItem.id,
-                                            Location = ToQuestLocation(questItem.Item.transform.position),
+                                            Id = location.id,
+                                            Location = ToQuestLocation(trigger.transform.position),
+                                            ZoneId = zoneId,
                                             NameText = _localizationHelper.Localized(nameKey),
-                                            Description = _localizationHelper.Localized(findItem.id),
+                                            Description = _localizationHelper.Localized(location.id),
                                             Trader = TraderIdToName(traderId),
                                         };
 
                                         questMarkerData.Add(staticInfo);
                                     }
                                 }
+
+                                break;
                             }
-
-                            break;
-                        }
-                        case ConditionCounterCreator counterCreator:
-                        {
-                            var counter = Traverse.Create(counterCreator).Field("counter").GetValue<object>();
-
-                            var conditions = Traverse.Create(counter).Property("conditions").GetValue<object>();
-
-                            var conditionsList = Traverse.Create(conditions).Field("list_0").GetValue<IList>();
-
-                            foreach (object condition2 in conditionsList)
+                            case ConditionPlaceBeacon beacon:
                             {
-                                switch (condition2)
+                                string zoneId = beacon.zoneId;
+
+                                IEnumerable<PlaceItemTrigger> zoneTriggers = allTriggers.GetZoneTriggers<PlaceItemTrigger>(zoneId);
+
+                                if (zoneTriggers != null)
                                 {
-                                    case ConditionVisitPlace place:
+                                    foreach (PlaceItemTrigger trigger in zoneTriggers)
                                     {
-                                        string zoneId = place.target;
-
-                                        IEnumerable<ExperienceTrigger> zoneTriggers =
-                                            allTriggers.GetZoneTriggers<ExperienceTrigger>(zoneId);
-
-                                        if (zoneTriggers != null)
+                                        var staticInfo = new QuestData
                                         {
-                                            foreach (ExperienceTrigger trigger in zoneTriggers)
-                                            {
-                                                var staticInfo = new QuestData
-                                                {
-                                                    Id = counterCreator.id,
-                                                    Location = ToQuestLocation(trigger.transform.position),
-                                                    ZoneId = zoneId,
-                                                    NameText = _localizationHelper.Localized(nameKey),
-                                                    Description = _localizationHelper.Localized(counterCreator.id),
-                                                    Trader = TraderIdToName(traderId),
-                                                };
+                                            Id = beacon.id,
+                                            Location = ToQuestLocation(trigger.transform.position),
+                                            ZoneId = zoneId,
+                                            NameText = _localizationHelper.Localized(nameKey),
+                                            Description = _localizationHelper.Localized(beacon.id),
+                                            Trader = TraderIdToName(traderId),
+                                        };
 
-                                                questMarkerData.Add(staticInfo);
-                                            }
-                                        }
-
-                                        break;
+                                        questMarkerData.Add(staticInfo);
                                     }
-                                    case ConditionInZone inZone:
-                                    {
-                                        string[] zoneIds = inZone.zoneIds;
+                                }
 
-                                        foreach (string zoneId in zoneIds)
+                                break;
+                            }
+                            case ConditionFindItem findItem:
+                            {
+                                string[] itemIds = findItem.target;
+
+                                foreach (string itemId in itemIds)
+                                {
+                                    foreach ((string Id, LootItem Item) questItem in questItems)
+                                    {
+                                        if (questItem.Id.Equals(itemId, StringComparison.OrdinalIgnoreCase))
                                         {
+                                            var staticInfo = new QuestData
+                                            {
+                                                Id = findItem.id,
+                                                Location = ToQuestLocation(questItem.Item.transform.position),
+                                                NameText = _localizationHelper.Localized(nameKey),
+                                                Description = _localizationHelper.Localized(findItem.id),
+                                                Trader = TraderIdToName(traderId),
+                                            };
+
+                                            questMarkerData.Add(staticInfo);
+                                        }
+                                    }
+                                }
+
+                                break;
+                            }
+                            case ConditionCounterCreator counterCreator:
+                            {
+                                var conditionsList = Traverse.Create(counterCreator.Conditions).Field("list_0").GetValue<IList>();
+
+                                foreach (object condition2 in conditionsList)
+                                {
+                                    switch (condition2)
+                                    {
+                                        case ConditionVisitPlace place:
+                                        {
+                                            string zoneId = place.target;
+
                                             IEnumerable<ExperienceTrigger> zoneTriggers =
                                                 allTriggers.GetZoneTriggers<ExperienceTrigger>(zoneId);
 
@@ -213,14 +183,44 @@ namespace CactusPie.MapLocation.Services.Quests
                                                     questMarkerData.Add(staticInfo);
                                                 }
                                             }
-                                        }
 
-                                        break;
+                                            break;
+                                        }
+                                        case ConditionInZone inZone:
+                                        {
+                                            string[] zoneIds = inZone.zoneIds;
+
+                                            foreach (string zoneId in zoneIds)
+                                            {
+                                                IEnumerable<ExperienceTrigger> zoneTriggers =
+                                                    allTriggers.GetZoneTriggers<ExperienceTrigger>(zoneId);
+
+                                                if (zoneTriggers != null)
+                                                {
+                                                    foreach (ExperienceTrigger trigger in zoneTriggers)
+                                                    {
+                                                        var staticInfo = new QuestData
+                                                        {
+                                                            Id = counterCreator.id,
+                                                            Location = ToQuestLocation(trigger.transform.position),
+                                                            ZoneId = zoneId,
+                                                            NameText = _localizationHelper.Localized(nameKey),
+                                                            Description = _localizationHelper.Localized(counterCreator.id),
+                                                            Trader = TraderIdToName(traderId),
+                                                        };
+
+                                                        questMarkerData.Add(staticInfo);
+                                                    }
+                                                }
+                                            }
+
+                                            break;
+                                        }
                                     }
                                 }
-                            }
 
-                            break;
+                                break;
+                            }
                         }
                     }
                 }

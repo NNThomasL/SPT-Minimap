@@ -21,9 +21,9 @@ namespace CactusPie.MapLocation.Patches
         {
             foreach (Type type in typeof(EFT.AbstractGame).Assembly.GetTypes())
             {
-                MethodInfo method = type.GetMethod("TryNotifyConditionChanged", BindingFlags.NonPublic | BindingFlags.Instance);
+                MethodInfo method = type.GetMethod("TryNotifyConditionChanged", BindingFlags.Public | BindingFlags.Instance);
 
-                if (method != null && type.BaseType == typeof(QuestControllerClass))
+                if (method != null && method.GetParameters()[0].Name == "quest")
                 {
                     return method;
                 }
