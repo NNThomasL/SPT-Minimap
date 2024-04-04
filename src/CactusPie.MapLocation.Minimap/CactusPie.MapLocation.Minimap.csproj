@@ -60,6 +60,9 @@
         <None Update="Maps\Labs.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Update="Maps\Ground Zero.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Update="Maps\MapCreationData\Labs.txt">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
@@ -177,6 +180,10 @@
         </Content>
         <None Remove="Maps\Images\woods.jpg" />
         <Content Include="Maps\Images\woods.jpg">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <None Remove="Maps\Images\ground_zero.jpg" />
+        <Content Include="Maps\Images\ground_zero.jpg">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
         <None Remove="Resources\circle_orange.png" />
