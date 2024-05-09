@@ -12,6 +12,7 @@ using EFT;
 using EFT.Interactive;
 using EmbedIO;
 using EmbedIO.Actions;
+using EmbedIO.Cors;
 using UnityEngine;
 
 namespace CactusPie.MapLocation.Services
@@ -46,7 +47,7 @@ namespace CactusPie.MapLocation.Services
                 if (_server == null)
                 {
                     var url = $"http://{ipAddress}:{port}/";
-                    _server = CreateWebServer(url);
+                    _server = CreateWebServer(url, port);
                 }
 
                 if (_server.State == WebServerState.Created)
@@ -89,13 +90,16 @@ namespace CactusPie.MapLocation.Services
             _botDataService?.Dispose();
         }
 
-        private WebServer CreateWebServer(string url)
+        private WebServer CreateWebServer(string url, int port)
         {
-            WebServer server = new WebServer(
-                    o => o
-                        .WithUrlPrefix(url)
-                        .WithMode(HttpListenerMode.Microsoft))
+            // WebServer server = new WebServer(
+            //         o => o
+            //             .WithUrlPrefix(url)
+            //             .WithMode(HttpListenerMode.Microsoft))
+            WebServer server = new WebServer(port)
                 .WithLocalSessionManager()
+                .WithModule(new CorsModule("/mapData", "*"))
+                .WithModule(new CorsModule("/quests", "*"))
                 .WithModule(new ActionModule("/mapData", HttpVerbs.Get, GetMapData))
                 .WithModule(new ActionModule("/quests", HttpVerbs.Get, GetQuests));
 
