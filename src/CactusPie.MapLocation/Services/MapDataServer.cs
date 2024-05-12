@@ -92,16 +92,20 @@ namespace CactusPie.MapLocation.Services
 
         private WebServer CreateWebServer(string url, int port)
         {
-            // WebServer server = new WebServer(
-            //         o => o
-            //             .WithUrlPrefix(url)
-            //             .WithMode(HttpListenerMode.Microsoft))
+            string zipPath = @"webData\";
+            string assemblyPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            string combinedPath = Path.Combine(assemblyPath, zipPath);
+            
+            MapLocationPlugin.MapLocationLogger.LogInfo($"Starting web server with zip at {combinedPath}");
+            
             WebServer server = new WebServer(port)
                 .WithLocalSessionManager()
                 .WithModule(new CorsModule("/mapData", "*"))
                 .WithModule(new CorsModule("/quests", "*"))
                 .WithModule(new ActionModule("/mapData", HttpVerbs.Get, GetMapData))
-                .WithModule(new ActionModule("/quests", HttpVerbs.Get, GetQuests));
+                .WithModule(new ActionModule("/quests", HttpVerbs.Get, GetQuests))
+                .WithModule(new FileModule("/",
+                new FileSystemProvider(combinedPath, true)));
 
             return server;
         }
