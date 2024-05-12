@@ -1,4 +1,8 @@
-﻿using BepInEx;
+﻿using System;
+using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using CactusPie.MapLocation.DI;
@@ -14,6 +18,8 @@ namespace CactusPie.MapLocation
     {
         internal static ManualLogSource MapLocationLogger { get; private set; }
 
+        internal static ConfigEntry<bool> OpenMapToggle { get ; private set; }
+        
         internal static ConfigEntry<string> ListenIpAddress { get; private set; }
 
         internal static ConfigEntry<int> ListenPort { get; private set; }
@@ -26,8 +32,33 @@ namespace CactusPie.MapLocation
         {
             MapLocationLogger = Logger;
             MapLocationLogger.LogInfo("MapLocation loaded");
+            
+            string ipAddressToShow = "Failed to find IPv4 address";
+            
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var ip in host.AddressList)
+            {
+                if (ip.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    ipAddressToShow = ip.ToString();
+                    break;
+                }
+            }
 
-            const string configSection = "Map settings";
+            string configSection = "Local IPv4 Address: " + ipAddressToShow;
+            
+            OpenMapToggle = Config.Bind
+            (
+                configSection,
+                "Open Map",
+                false,
+                new ConfigDescription
+                (
+                    "Opens the map when toggled on"
+                )
+            );
+            
+            OpenMapToggle.SettingChanged += OpenMapSettingChanged;
 
             ListenIpAddress = Config.Bind(
                 configSection,
@@ -39,7 +70,7 @@ namespace CactusPie.MapLocation
             ListenPort = Config.Bind(
                 configSection,
                 nameof(ListenPort),
-                45365,
+                45366,
                 new ConfigDescription(
                     "Destination Port (requires restarting the game)",
                     new AcceptableValueRange<int>(1024, 65535)
@@ -53,6 +84,18 @@ namespace CactusPie.MapLocation
             new MapLocationPatch().Enable();
             new AirdropMapLocationPatch(ServiceContainer.GetInstance<IAirdropService>()).Enable();
             new TryNotifyConditionChangedPatch(ServiceContainer.GetInstance<IMapDataServer>()).Enable();
+        }
+        
+        static void OpenMapSettingChanged(object sender, EventArgs e)
+        {
+            MapLocationLogger.LogInfo($"OpenMap setting changed");
+
+            if (OpenMapToggle.Value)
+            {
+                OpenMapToggle.Value = false;
+
+                Process.Start($"http://localhost:{ListenPort.Value}/");
+            }
         }
     }
 }
